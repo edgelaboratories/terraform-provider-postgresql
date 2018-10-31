@@ -84,10 +84,12 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"postgresql_database":  resourcePostgreSQLDatabase(),
-			"postgresql_extension": resourcePostgreSQLExtension(),
-			"postgresql_schema":    resourcePostgreSQLSchema(),
-			"postgresql_role":      resourcePostgreSQLRole(),
+			"postgresql_database":           resourcePostgreSQLDatabase(),
+			"postgresql_extension":          resourcePostgreSQLExtension(),
+			"postgresql_schema":             resourcePostgreSQLSchema(),
+			"postgresql_role":               resourcePostgreSQLRole(),
+			"postgresql_grant":              resourcePostgreSQLGrant(),
+			"postgresql_default_privileges": resourcePostgreSQLDefaultPrivileges(),
 		},
 
 		ConfigureFunc: providerConfigure,
@@ -133,7 +135,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	config := Config{
 		Host:              d.Get("host").(string),
 		Port:              d.Get("port").(int),
-		Database:          d.Get("database").(string),
 		Username:          d.Get("username").(string),
 		Password:          d.Get("password").(string),
 		SSLMode:           sslMode,
@@ -143,7 +144,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		ExpectedVersion:   version,
 	}
 
-	client, err := config.NewClient()
+	client, err := config.NewClient(d.Get("database").(string))
 	if err != nil {
 		return nil, errwrap.Wrapf("Error initializing PostgreSQL client: {{err}}", err)
 	}

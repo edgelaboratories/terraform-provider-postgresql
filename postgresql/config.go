@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"github.com/blang/semver"
-	"github.com/hashicorp/errwrap"
 	_ "github.com/lib/pq" //PostgreSQL db
+	"github.com/pkg/errors"
 )
 
 type featureName uint
@@ -64,7 +64,6 @@ var (
 type Config struct {
 	Host              string
 	Port              int
-	Database          string
 	Username          string
 	Password          string
 	SSLMode           string
@@ -79,6 +78,8 @@ type Config struct {
 type Client struct {
 	// Configuration for the client
 	config Config
+
+	databaseName string
 
 	// db is a pointer to the DB connection.  Callers are responsible for
 	// releasing their connections.
@@ -97,16 +98,16 @@ type Client struct {
 }
 
 // NewClient returns new client config
-func (c *Config) NewClient() (*Client, error) {
+func (c *Config) NewClient(database string) (*Client, error) {
 	dbRegistryLock.Lock()
 	defer dbRegistryLock.Unlock()
 
-	dsn := c.connStr()
+	dsn := c.connStr(database)
 	dbEntry, found := dbRegistry[dsn]
 	if !found {
 		db, err := sql.Open("postgres", dsn)
 		if err != nil {
-			return nil, errwrap.Wrapf("Error connecting to PostgreSQL server: {{err}}", err)
+			return nil, errors.Wrap(err, "could not connect to PostgreSQL server")
 		}
 
 		// only one connection
@@ -116,7 +117,7 @@ func (c *Config) NewClient() (*Client, error) {
 		version, err := fingerprintCapabilities(db)
 		if err != nil {
 			db.Close()
-			return nil, errwrap.Wrapf("error detecting capabilities: {{err}}", err)
+			return nil, errors.Wrap(err, "error detecting capabilities")
 		}
 
 		dbEntry = dbRegistryEntry{
@@ -127,8 +128,9 @@ func (c *Config) NewClient() (*Client, error) {
 	}
 
 	client := Client{
-		config: *c,
-		db:     dbEntry.db,
+		config:       *c,
+		databaseName: database,
+		db:           dbEntry.db,
 	}
 
 	return &client, nil
@@ -147,7 +149,7 @@ func (c *Config) featureSupported(name featureName) bool {
 	return fn(c.ExpectedVersion)
 }
 
-func (c *Config) connStr() string {
+func (c *Config) connStr(database string) string {
 	// NOTE: dbname must come before user otherwise dbname will be set to
 	// user.
 	var dsnFmt string
@@ -202,7 +204,7 @@ func (c *Config) connStr() string {
 		logValues := []interface{}{
 			quote(c.Host),
 			c.Port,
-			quote(c.Database),
+			quote(database),
 			quote(c.Username),
 			quote("<redacted>"),
 			quote(c.SSLMode),
@@ -221,7 +223,7 @@ func (c *Config) connStr() string {
 		connValues := []interface{}{
 			quote(c.Host),
 			c.Port,
-			quote(c.Database),
+			quote(database),
 			quote(c.Username),
 			quote(c.Password),
 			quote(c.SSLMode),
@@ -249,7 +251,7 @@ func fingerprintCapabilities(db *sql.DB) (*semver.Version, error) {
 	var pgVersion string
 	err := db.QueryRow(`SELECT VERSION()`).Scan(&pgVersion)
 	if err != nil {
-		return nil, errwrap.Wrapf("error PostgreSQL version: {{err}}", err)
+		return nil, errors.Wrap(err, "error PostgreSQL version")
 	}
 
 	// PostgreSQL 9.2.21 on x86_64-apple-darwin16.5.0, compiled by Apple LLVM version 8.1.0 (clang-802.0.42), 64-bit
@@ -263,7 +265,7 @@ func fingerprintCapabilities(db *sql.DB) (*semver.Version, error) {
 
 	version, err := semver.ParseTolerant(fields[1])
 	if err != nil {
-		return nil, errwrap.Wrapf("error parsing version: {{err}}", err)
+		return nil, errors.Wrap(err, "error parsing version")
 	}
 
 	return &version, nil
