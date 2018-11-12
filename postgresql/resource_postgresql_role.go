@@ -259,6 +259,10 @@ func resourcePostgreSQLRoleCreate(d *schema.ResourceData, meta interface{}) erro
 		return errors.Wrapf(err, "error creating role %s", roleName)
 	}
 
+	if err = grantRoles(txn, d); err != nil {
+		return err
+	}
+
 	if err = txn.Commit(); err != nil {
 		return errors.Wrap(err, "could not commit transaction")
 	}
