@@ -97,7 +97,7 @@ type Client struct {
 	catalogLock sync.RWMutex
 }
 
-// NewClient returns new client config
+// NewClient returns client config for the specified database.
 func (c *Config) NewClient(database string) (*Client, error) {
 	dbRegistryLock.Lock()
 	defer dbRegistryLock.Unlock()
@@ -110,8 +110,10 @@ func (c *Config) NewClient(database string) (*Client, error) {
 			return nil, errors.Wrap(err, "could not connect to PostgreSQL server")
 		}
 
-		// only one connection
-		db.SetMaxIdleConns(1)
+		// We don't want to retain connection
+		// So when we connect on a specific database which might be managed by terraform,
+		// we don't keep opened connection in case of the db will destroyed
+		db.SetMaxIdleConns(0)
 		db.SetMaxOpenConns(c.MaxConns)
 
 		version, err := fingerprintCapabilities(db)

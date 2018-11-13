@@ -74,13 +74,17 @@ func TestAccPostgresqlRole_Update(t *testing.T) {
 			{
 				Config: testAccPostgresqlRoleUpdate2Config,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckPostgresqlRoleExists("tf_tests_update_role", []string{"group_role"}),
-					resource.TestCheckResourceAttr("postgresql_role.update_role", "name", "tf_tests_update_role"),
+					testAccCheckPostgresqlRoleExists("tf_tests_update_role2", []string{"tf_tests_group_role"}),
+					resource.TestCheckResourceAttr(
+						"postgresql_role.update_role", "name", "tf_tests_update_role2",
+					),
 					resource.TestCheckResourceAttr("postgresql_role.update_role", "login", "true"),
 					resource.TestCheckResourceAttr("postgresql_role.update_role", "connection_limit", "5"),
 					resource.TestCheckResourceAttr("postgresql_role.update_role", "roles.#", "1"),
 					// The int part in the attr name is the schema.HashString of the value.
-					resource.TestCheckResourceAttr("postgresql_role.update_role", "roles.2117325082", "group_role"),
+					resource.TestCheckResourceAttr(
+						"postgresql_role.update_role", "roles.2634717634", "tf_tests_group_role",
+					),
 				),
 			},
 		},

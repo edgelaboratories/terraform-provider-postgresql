@@ -37,7 +37,7 @@ func resourcePostgreSQLDefaultPrivileges() *schema.Resource {
 			"owner": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Role for which apply default privileges (You can change default privileges only for objects that will be created by yoursSHOW FULL PROCESSLIST  elf or by roles that you are a member of)",
+				Description: "Role for which apply default privileges (You can change default privileges only for objects that will be created by yourself or by roles that you are a member of)",
 			},
 			"schema": {
 				Type:     schema.TypeString,

@@ -280,6 +280,9 @@ func resourcePostgreSQLRoleCreate(d *schema.ResourceData, meta interface{}) erro
 
 func resourcePostgreSQLRoleDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*Client)
+	client.catalogLock.Lock()
+	defer client.catalogLock.Unlock()
+
 	txn, err := startTransaction(client, "")
 	if err != nil {
 		return err
@@ -440,6 +443,8 @@ func resourcePostgreSQLRoleReadImpl(client *Client, txn *sql.Tx, d *schema.Resou
 
 func resourcePostgreSQLRoleUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*Client)
+	client.catalogLock.Lock()
+	defer client.catalogLock.Unlock()
 
 	txn, err := startTransaction(client, "")
 	if err != nil {
