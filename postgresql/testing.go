@@ -38,6 +38,7 @@ func getTestConfig(t *testing.T) Config {
 		Port:     dbPort,
 		Username: getEnv("PGUSER", ""),
 		Password: getEnv("PGPASSWORD", ""),
+		SSLMode:  getEnv("PGSSLMODE", ""),
 	}
 }
 

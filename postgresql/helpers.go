@@ -38,6 +38,7 @@ func sliceContainsStr(haystack []string, needle string) bool {
 }
 
 // allowedPrivileges is the list of privileges allowed per object types in Postgres.
+// see: https://www.postgresql.org/docs/current/sql-grant.html
 var allowedPrivileges = map[string][]string{
 	"table":    []string{"ALL", "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"},
 	"sequence": []string{"ALL", "USAGE", "SELECT", "UPDATE"},
@@ -66,8 +67,8 @@ func pgArrayToSet(arr pq.ByteaArray) *schema.Set {
 	return schema.NewSet(schema.HashString, s)
 }
 
-// startTransaction start a new DB transaction on the specified database.
-// If the database is specified and not the one configured in the provider,
+// startTransaction starts a new DB transaction on the specified database.
+// If the database is specified and and different from the one configured in the provider,
 // it will create a new connection pool if needed.
 func startTransaction(client *Client, database string) (*sql.Tx, error) {
 	if database != "" && database != client.databaseName {
@@ -87,7 +88,7 @@ func startTransaction(client *Client, database string) (*sql.Tx, error) {
 }
 
 func dbExists(txn *sql.Tx, dbname string) (bool, error) {
-	err := txn.QueryRow("SELECT datname from pg_database WHERE datname=$1", dbname).Scan(&dbname)
+	err := txn.QueryRow("SELECT datname FROM pg_database WHERE datname=$1", dbname).Scan(&dbname)
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil

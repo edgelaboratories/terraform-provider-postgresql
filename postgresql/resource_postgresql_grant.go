@@ -32,18 +32,19 @@ func resourcePostgreSQLGrant() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
-				Description: "The name of the role to which grant privileges",
+				Description: "The name of the role to grant privileges on",
 			},
 			"database": {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
-				Description: "The database on which grant privileges for this role",
+				Description: "The database to grant privileges on for this role",
 			},
 			"schema": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Description: "The database schema to grant privileges on for this role",
 			},
 			"object_type": {
 				Type:     schema.TypeString,
@@ -53,13 +54,15 @@ func resourcePostgreSQLGrant() *schema.Resource {
 					"table",
 					"sequence",
 				}, false),
+				Description: "The PostgreSQL object type to grant the privileges on (one of: table, sequence)",
 			},
 			"privileges": &schema.Schema{
-				Type:     schema.TypeSet,
-				Required: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
-				Set:      schema.HashString,
-				MinItems: 1,
+				Type:        schema.TypeSet,
+				Required:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Set:         schema.HashString,
+				MinItems:    1,
+				Description: "The list of privileges to grant",
 			},
 		},
 	}
@@ -75,6 +78,7 @@ func resourcePostgreSQLGrantRead(d *schema.ResourceData, meta interface{}) error
 		d.SetId("")
 		return nil
 	}
+	d.SetId(generateGrantID(d))
 
 	txn, err := startTransaction(client, d.Get("database").(string))
 	if err != nil {
@@ -91,7 +95,6 @@ func resourcePostgreSQLGrantCreate(d *schema.ResourceData, meta interface{}) err
 	}
 
 	client := meta.(*Client)
-	role := d.Get("role").(string)
 	database := d.Get("database").(string)
 
 	txn, err := startTransaction(client, database)
@@ -101,7 +104,8 @@ func resourcePostgreSQLGrantCreate(d *schema.ResourceData, meta interface{}) err
 	defer txn.Rollback()
 
 	// Revoke all privileges before granting otherwise reducing privileges will not work.
-	// We just have to revoke them in the same transaction so role will not lost his privileges between revoke and grant.
+	// We just have to revoke them in the same transaction so the role will not lost its
+	// privileges between the revoke and grant statements.
 	if err = revokeRolePrivileges(txn, d); err != nil {
 		return err
 	}
@@ -114,7 +118,7 @@ func resourcePostgreSQLGrantCreate(d *schema.ResourceData, meta interface{}) err
 		return errwrap.Wrapf("could not commit transaction: {{err}}", err)
 	}
 
-	d.SetId(fmt.Sprintf("%s-%s-%s", role, database, d.Get("schema").(string)))
+	d.SetId(generateGrantID(d))
 
 	txn, err = startTransaction(client, database)
 	if err != nil {
@@ -144,6 +148,11 @@ func resourcePostgreSQLGrantDelete(d *schema.ResourceData, meta interface{}) err
 }
 
 func readRolePrivileges(txn *sql.Tx, d *schema.ResourceData) error {
+	// This returns, for the specified role (rolname),
+	// the list of all object of the specified type (relkind) in the specified schema (namespace)
+	// with the list of the currently applied privileges (aggregation of privilege_type)
+	//
+	// Our goal is to check that every objects has the same privileges as saved in the state.
 	query := `
 SELECT pg_class.relname, array_remove(array_agg(privilege_type), NULL)
 FROM pg_class
@@ -178,7 +187,7 @@ GROUP BY pg_class.relname;
 		privilegesSet := pgArrayToSet(privileges)
 
 		if !privilegesSet.Equal(d.Get("privileges").(*schema.Set)) {
-			// If an object has not the same privileges as saved in the state,
+			// If any object doesn't have the same privileges as saved in the state,
 			// we return an empty privileges to force an update.
 			log.Printf(
 				"[DEBUG] %s %s has not the expected privileges %v for role %s",
@@ -230,7 +239,7 @@ func checkRoleDBSchemaExists(client *Client, d *schema.ResourceData) (bool, erro
 	}
 	defer txn.Rollback()
 
-	// Check that role exists
+	// Check the role exists
 	role := d.Get("role").(string)
 	exists, err := roleExists(txn, role)
 	if err != nil {
@@ -241,7 +250,7 @@ func checkRoleDBSchemaExists(client *Client, d *schema.ResourceData) (bool, erro
 		return false, nil
 	}
 
-	// Check that database exists
+	// Check the database exists
 	database := d.Get("database").(string)
 	exists, err = dbExists(txn, database)
 	if err != nil {
@@ -259,7 +268,7 @@ func checkRoleDBSchemaExists(client *Client, d *schema.ResourceData) (bool, erro
 	}
 	defer dbTxn.Rollback()
 
-	// Check that schema exists ( be connected on the right database for that)
+	// Check the schema exists (the SQL connection needs to be on the right database)
 	pgSchema := d.Get("schema").(string)
 	exists, err = schemaExists(txn, pgSchema)
 	if err != nil {
@@ -271,4 +280,11 @@ func checkRoleDBSchemaExists(client *Client, d *schema.ResourceData) (bool, erro
 	}
 
 	return true, nil
+}
+
+func generateGrantID(d *schema.ResourceData) string {
+	return strings.Join([]string{
+		d.Get("role").(string), d.Get("database").(string),
+		d.Get("schema").(string), d.Get("object_type").(string),
+	}, "_")
 }
