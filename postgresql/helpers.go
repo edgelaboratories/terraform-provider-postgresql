@@ -68,7 +68,7 @@ func pgArrayToSet(arr pq.ByteaArray) *schema.Set {
 }
 
 // startTransaction starts a new DB transaction on the specified database.
-// If the database is specified and and different from the one configured in the provider,
+// If the database is specified and different from the one configured in the provider,
 // it will create a new connection pool if needed.
 func startTransaction(client *Client, database string) (*sql.Tx, error) {
 	if database != "" && database != client.databaseName {

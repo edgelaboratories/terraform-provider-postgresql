@@ -26,7 +26,6 @@ func resourcePostgreSQLGrant() *schema.Resource {
 		Read:   resourcePostgreSQLGrantRead,
 		Delete: resourcePostgreSQLGrantDelete,
 
-		// TODO: fill descriptions
 		Schema: map[string]*schema.Schema{
 			"role": {
 				Type:        schema.TypeString,
@@ -152,7 +151,7 @@ func readRolePrivileges(txn *sql.Tx, d *schema.ResourceData) error {
 	// the list of all object of the specified type (relkind) in the specified schema (namespace)
 	// with the list of the currently applied privileges (aggregation of privilege_type)
 	//
-	// Our goal is to check that every objects has the same privileges as saved in the state.
+	// Our goal is to check that every object has the same privileges as saved in the state.
 	query := `
 SELECT pg_class.relname, array_remove(array_agg(privilege_type), NULL)
 FROM pg_class
