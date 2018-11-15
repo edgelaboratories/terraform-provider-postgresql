@@ -704,20 +704,30 @@ func setRoleValidUntil(txn *sql.Tx, d *schema.ResourceData) error {
 func revokeRoles(txn *sql.Tx, d *schema.ResourceData) error {
 	role := d.Get(roleNameAttr).(string)
 
-	query := `SELECT array_remove(array_agg(role_name::text), NULL)
-FROM information_schema.applicable_roles
-WHERE grantee = $1`
-
-	var grantedRoles pq.ByteaArray
-	if err := txn.QueryRow(query, role).Scan(&grantedRoles); err != nil {
+	query := "SELECT role_name FROM information_schema.applicable_roles WHERE grantee = $1"
+	rows, err := txn.Query(query, role)
+	if err != nil {
 		return errwrap.Wrapf(fmt.Sprintf("could not get roles list for role %s: {{err}}", role), err)
+	}
+	defer rows.Close()
+
+	grantedRoles := []string{}
+	for rows.Next() {
+		var grantedRole string
+
+		if err = rows.Scan(&grantedRole); err != nil {
+			return errwrap.Wrapf(fmt.Sprintf("could not scan role name for role %s: {{err}}", role), err)
+		}
+		// We cannot revoke directly here as it shares the same cursor (with Tx)
+		// and rows.Next seems to retrieve result row by row.
+		// see: https://github.com/lib/pq/issues/81
+		grantedRoles = append(grantedRoles, grantedRole)
 	}
 
 	for _, grantedRole := range grantedRoles {
-		query = fmt.Sprintf(
-			"REVOKE %s FROM %s", pq.QuoteIdentifier(string(grantedRole)), pq.QuoteIdentifier(role),
-		)
-		log.Printf("[DEBUG] revoking role %s from %s", string(grantedRole), role)
+		query = fmt.Sprintf("REVOKE %s FROM %s", pq.QuoteIdentifier(grantedRole), pq.QuoteIdentifier(role))
+
+		log.Printf("[DEBUG] revoking role %s from %s", grantedRole, role)
 		if _, err := txn.Exec(query); err != nil {
 			return errwrap.Wrapf(fmt.Sprintf("could not revoke role %s from %s: {{err}}", string(grantedRole), role), err)
 		}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
-	"github.com/lib/pq"
 )
 
 func TestAccPostgresqlRole_Basic(t *testing.T) {
@@ -87,6 +86,17 @@ func TestAccPostgresqlRole_Update(t *testing.T) {
 					),
 				),
 			},
+			// apply again the first one to tests granted role is correctly revoked
+			{
+				Config: testAccPostgresqlRoleUpdate1Config,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPostgresqlRoleExists("tf_tests_update_role", []string{}),
+					resource.TestCheckResourceAttr("postgresql_role.update_role", "name", "tf_tests_update_role"),
+					resource.TestCheckResourceAttr("postgresql_role.update_role", "login", "true"),
+					resource.TestCheckResourceAttr("postgresql_role.update_role", "connection_limit", "-1"),
+					resource.TestCheckResourceAttr("postgresql_role.update_role", "roles.#", "0"),
+				),
+			},
 		},
 	})
 }
@@ -147,27 +157,29 @@ func checkRoleExists(client *Client, roleName string) (bool, error) {
 }
 
 func checkGrantedRoles(client *Client, roleName string, expectedRoles []string) error {
-
-	var grantedRoles pq.ByteaArray
-
-	err := client.DB().QueryRow(
-		"SELECT array_agg(role_name::text ORDER BY role_name) FROM information_schema.applicable_roles WHERE grantee=$1",
+	rows, err := client.DB().Query(
+		"SELECT role_name FROM information_schema.applicable_roles WHERE grantee=$1 ORDER BY role_name",
 		roleName,
-	).Scan(&grantedRoles)
+	)
 	if err != nil {
 		return fmt.Errorf("Error reading granted roles: %v", err)
 	}
+	defer rows.Close()
 
-	grantedRolesArr := []string{}
-	for _, v := range grantedRoles {
-		grantedRolesArr = append(grantedRolesArr, string(v))
+	grantedRoles := []string{}
+	for rows.Next() {
+		var grantedRole string
+		if err := rows.Scan(&grantedRole); err != nil {
+			return fmt.Errorf("Error scanning granted role: %v", err)
+		}
+		grantedRoles = append(grantedRoles, grantedRole)
 	}
 
 	sort.Strings(expectedRoles)
-	if !reflect.DeepEqual(grantedRolesArr, expectedRoles) {
+	if !reflect.DeepEqual(grantedRoles, expectedRoles) {
 		return fmt.Errorf(
 			"Role %s is not a members of the expected list of roles. expected %v - got %v",
-			roleName, expectedRoles, grantedRolesArr,
+			roleName, expectedRoles, grantedRoles,
 		)
 	}
 	return nil
