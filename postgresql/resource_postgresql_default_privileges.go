@@ -195,8 +195,9 @@ func grantRoleDefaultPrivileges(txn *sql.Tx, d *schema.ResourceData) error {
 
 	// TODO: We grant default privileges for the DB owner
 	// For that we need to be either superuser or a member of the owner role.
-	// For RDS it will not be the case so the solution may be to grant the owner role
-	// to the connected user
+	// With AWS RDS, It's not possible to create superusers as it is restricted by AWS itself.
+	// In that case, the only solution would be to have the PostgreSQL user used by Terraform
+	// to be also part of the database owner role.
 
 	query := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT %s ON %sS TO %s",
 		pq.QuoteIdentifier(d.Get("owner").(string)),

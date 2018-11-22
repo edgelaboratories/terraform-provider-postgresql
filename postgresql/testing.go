@@ -93,29 +93,9 @@ func setupTestDatabase(t *testing.T, createDB, createRole, createTable bool) (st
 	}
 }
 
-func testCheckTablePrivileges(
-	t *testing.T, dbSuffix string, allowedPrivileges []string, createTable bool,
-) error {
+func testCheckTablePrivileges(t *testing.T, dbSuffix string, allowedPrivileges []string) error {
 	config := getTestConfig(t)
-
 	dbName, roleName := getTestDBNames(dbSuffix)
-
-	// Some test (e.g.: default privileges) need the test table to be created only now
-	if createTable {
-		db, err := sql.Open("postgres", config.connStr(dbName))
-		if err != nil {
-			t.Fatalf("could not open connection pool for db %s: %v", dbName, err)
-		}
-		defer db.Close()
-
-		if _, err := db.Exec(testTableDef); err != nil {
-			t.Fatalf("could not create test table in db %s: %v", dbName, err)
-		}
-		// In this case we need to drop table after each test.
-		defer func() {
-			db.Exec("DROP TABLE test_table")
-		}()
-	}
 
 	// Connect as the test role
 	config.Username = roleName

@@ -44,7 +44,7 @@ func TestAccPostgresqlGrant(t *testing.T) {
 				Config: testGrantSelect,
 				Check: resource.ComposeTestCheckFunc(
 					func(*terraform.State) error {
-						return testCheckTablePrivileges(t, dbSuffix, []string{"SELECT"}, false)
+						return testCheckTablePrivileges(t, dbSuffix, []string{"SELECT"})
 					},
 					resource.TestCheckResourceAttr("postgresql_grant.test_ro", "privileges.#", "1"),
 					resource.TestCheckResourceAttr("postgresql_grant.test_ro", "privileges.3138006342", "SELECT"),
@@ -54,7 +54,7 @@ func TestAccPostgresqlGrant(t *testing.T) {
 				Config: testGrantSelectInsertUpdate,
 				Check: resource.ComposeTestCheckFunc(
 					func(*terraform.State) error {
-						return testCheckTablePrivileges(t, dbSuffix, []string{"SELECT", "INSERT", "UPDATE"}, false)
+						return testCheckTablePrivileges(t, dbSuffix, []string{"SELECT", "INSERT", "UPDATE"})
 					},
 					resource.TestCheckResourceAttr("postgresql_grant.test_ro", "privileges.#", "3"),
 					resource.TestCheckResourceAttr("postgresql_grant.test_ro", "privileges.3138006342", "SELECT"),
