@@ -156,11 +156,8 @@ func readRoleDefaultPrivileges(txn *sql.Tx, d *schema.ResourceData) error {
 		WHERE defaclobjtype = $3
 	) AS t (namespace, grantor_oid, grantee_oid, prtype, grantable)
 
-	JOIN pg_roles role_grantee ON grantee_oid = role_grantee.oid
-	JOIN pg_roles role_grantor ON grantor_oid = role_grantor.oid
 	JOIN pg_namespace ON pg_namespace.oid = namespace
-
-	WHERE role_grantee.rolname = $1 AND nspname = $2 AND role_grantor.rolname = $4;
+	WHERE pg_get_userbyid(grantee_oid) = $1 AND nspname = $2 AND pg_get_userbyid(grantor_oid) = $4;
 `
 	var privileges pq.ByteaArray
 
