@@ -490,7 +490,7 @@ func resourcePostgreSQLRoleUpdate(d *schema.ResourceData, meta interface{}) erro
 		return err
 	}
 
-	// applying roles: let's revoke all / granted right ones
+	// applying roles: let's revoke all / grant the right ones
 	if err = revokeRoles(txn, d); err != nil {
 		return err
 	}

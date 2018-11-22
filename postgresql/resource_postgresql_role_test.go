@@ -86,7 +86,7 @@ func TestAccPostgresqlRole_Update(t *testing.T) {
 					),
 				),
 			},
-			// apply again the first one to tests granted role is correctly revoked
+			// apply again the first one to tests the granted role is correctly revoked
 			{
 				Config: testAccPostgresqlRoleUpdate1Config,
 				Check: resource.ComposeTestCheckFunc(
