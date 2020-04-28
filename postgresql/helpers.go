@@ -92,6 +92,40 @@ func revokeRoleMembership(db QueryAble, role, member string) error {
 	return nil
 }
 
+// withRolesGranted temporary grants, if needed, the roles specified to connected user
+// (i.e.: the admin configure in the provider) and revoke them as soon as the
+// callback func has finished.
+func withRolesGranted(txn *sql.Tx, roles []string, fn func() error) error {
+	currentUser, err := getCurrentUser(txn)
+	if err != nil {
+		return err
+	}
+
+	var granted []string
+	for _, role := range roles {
+		roleGranted, err := grantRoleMembership(txn, role, currentUser)
+		if err != nil {
+			return err
+		}
+		if roleGranted {
+			granted = append(granted, role)
+		}
+	}
+
+	if err := fn(); err != nil {
+		return err
+	}
+
+	for _, role := range granted {
+		err := revokeRoleMembership(txn, role, currentUser)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func sliceContainsStr(haystack []string, needle string) bool {
 	for _, s := range haystack {
 		if s == needle {
@@ -196,6 +230,19 @@ func schemaExists(txn *sql.Tx, schemaname string) (bool, error) {
 	return true, nil
 }
 
+func getCurrentUser(db QueryAble) (string, error) {
+	var currentUser string
+	err := db.QueryRow("SELECT CURRENT_USER").Scan(&currentUser)
+	switch {
+	case err == sql.ErrNoRows:
+		return "", fmt.Errorf("SELECT CURRENT_USER returns now row, this is quite disturbing")
+	case err != nil:
+		return "", errwrap.Wrapf("error while looking for the current user: {{err}}", err)
+	}
+
+	return currentUser, nil
+}
+
 // deferredRollback can be used to rollback a transaction in a defer.
 // It will log an error if it fails
 func deferredRollback(txn *sql.Tx) {
@@ -217,4 +264,73 @@ func getDatabase(d *schema.ResourceData, client *Client) string {
 	}
 
 	return database
+}
+
+func getDatabaseOwner(db QueryAble, database string) (string, error) {
+	query := `
+SELECT rolname
+  FROM pg_database
+  JOIN pg_roles ON datdba = pg_roles.oid
+  WHERE datname = $1
+`
+	var owner string
+
+	err := db.QueryRow(query, database).Scan(&owner)
+	switch {
+	case err == sql.ErrNoRows:
+		return "", fmt.Errorf("could not find database '%s' while looking for owner", database)
+	case err != nil:
+		return "", errwrap.Wrapf(
+			fmt.Sprintf("error while looking for the owner of database '%s': {{err}}", database),
+			err,
+		)
+	}
+	return owner, nil
+}
+
+func getSchemaOwner(db QueryAble, schemaName string) (string, error) {
+	query := `
+SELECT rolname
+  FROM pg_namespace
+  JOIN pg_roles ON nspowner = pg_roles.oid
+  WHERE nspname = $1
+`
+	var owner string
+
+	err := db.QueryRow(query, schemaName).Scan(&owner)
+	switch {
+	case err == sql.ErrNoRows:
+		return "", fmt.Errorf("could not find schema '%s' while looking for owner", schemaName)
+	case err != nil:
+		return "", errwrap.Wrapf(
+			fmt.Sprintf("error while looking for the owner of schema '%s': {{err}}", schemaName),
+			err,
+		)
+	}
+	return owner, nil
+}
+
+// getTablesOwner retrieves all the owners for all the tables in the specified schema.
+func getTablesOwner(db QueryAble, schemaName string) ([]string, error) {
+	rows, err := db.Query(
+		"SELECT DISTINCT tableowner FROM pg_tables WHERE schemaname = $1",
+		schemaName,
+	)
+	if err != nil {
+		return nil, errwrap.Wrapf(
+			fmt.Sprintf("error while looking for owners of tables in schema '%s': {{err}}", schemaName),
+			err,
+		)
+	}
+
+	var owners []string
+	for rows.Next() {
+		var owner string
+		if err := rows.Scan(&owner); err != nil {
+			return nil, errwrap.Wrapf("could not scan tables owner: {{err}}", err)
+		}
+		owners = append(owners, owner)
+	}
+
+	return owners, nil
 }
