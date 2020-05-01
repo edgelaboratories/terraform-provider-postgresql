@@ -92,7 +92,7 @@ func revokeRoleMembership(db QueryAble, role, member string) error {
 	return nil
 }
 
-// withRolesGranted temporary grants, if needed, the roles specified to connected user
+// withRolesGranted temporarily grants, if needed, the roles specified to connected user
 // (i.e.: the admin configure in the provider) and revoke them as soon as the
 // callback func has finished.
 func withRolesGranted(txn *sql.Tx, roles []string, fn func() error) error {
@@ -101,14 +101,14 @@ func withRolesGranted(txn *sql.Tx, roles []string, fn func() error) error {
 		return err
 	}
 
-	var granted []string
+	var grantedRoles []string
 	for _, role := range roles {
 		roleGranted, err := grantRoleMembership(txn, role, currentUser)
 		if err != nil {
 			return err
 		}
 		if roleGranted {
-			granted = append(granted, role)
+			grantedRoles = append(grantedRoles, role)
 		}
 	}
 
@@ -116,9 +116,8 @@ func withRolesGranted(txn *sql.Tx, roles []string, fn func() error) error {
 		return err
 	}
 
-	for _, role := range granted {
-		err := revokeRoleMembership(txn, role, currentUser)
-		if err != nil {
+	for _, role := range grantedRoles {
+		if err := revokeRoleMembership(txn, role, currentUser); err != nil {
 			return err
 		}
 	}

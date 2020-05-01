@@ -151,10 +151,9 @@ func resourcePostgreSQLSchemaCreate(d *schema.ResourceData, meta interface{}) er
 
 	}
 
-	err = withRolesGranted(txn, rolesToGrant, func() error {
+	if err = withRolesGranted(txn, rolesToGrant, func() error {
 		return createSchema(d, c, txn)
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
