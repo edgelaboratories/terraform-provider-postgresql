@@ -238,7 +238,6 @@ func getCurrentUser(db QueryAble) (string, error) {
 	case err != nil:
 		return "", errwrap.Wrapf("error while looking for the current user: {{err}}", err)
 	}
-
 	return currentUser, nil
 }
 

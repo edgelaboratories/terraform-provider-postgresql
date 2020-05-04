@@ -141,19 +141,16 @@ func resourcePostgreSQLGrantCreate(d *schema.ResourceData, meta interface{}) err
 		return err
 	}
 
-	if err = withRolesGranted(txn, owners, func() error {
-
+	if err := withRolesGranted(txn, owners, func() error {
 		// Revoke all privileges before granting otherwise reducing privileges will not work.
 		// We just have to revoke them in the same transaction so the role will not lost its
 		// privileges between the revoke and grant statements.
-		if err = revokeRolePrivileges(txn, d); err != nil {
+		if err := revokeRolePrivileges(txn, d); err != nil {
 			return err
 		}
-
-		if err = grantRolePrivileges(txn, d); err != nil {
+		if err := grantRolePrivileges(txn, d); err != nil {
 			return err
 		}
-
 		return nil
 	}); err != nil {
 		return err
@@ -198,7 +195,7 @@ func resourcePostgreSQLGrantDelete(d *schema.ResourceData, meta interface{}) err
 		return err
 	}
 
-	if err = withRolesGranted(txn, owners, func() error {
+	if err := withRolesGranted(txn, owners, func() error {
 		return revokeRolePrivileges(txn, d)
 	}); err != nil {
 		return err
